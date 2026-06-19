@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Relocation Ledger — NC vs TN Retirement Comparison</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root{
+    --paper:#EEF1ED;
+    --ink:#20262B;
+    --ledger:#1F4D36;
+    --ledger-light:#2E6B4D;
+    --brass:#B7862C;
+    --rust:#A9462A;
+    --nc:#3C5A78;
+    --tn:#8B5E3C;
+    --line:#C7CBC2;
+    --card:#F8F9F6;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'IBM Plex Sans',sans-serif;
+    line-height:1.5;
+  }
+  h1,h2,h3{
+    font-family:'Source Serif 4',serif;
+    font-weight:700;
+    margin:0;
+  }
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px 80px;}
+
+  /* HERO */
+  .hero{
+    background:var(--ledger);
+    color:var(--paper);
+    padding:56px 24px 64px;
+    position:relative;
+    overflow:hidden;
+  }
+  .hero::after{
+    content:"";
+    position:absolute; inset:0;
+    background-image:repeating-linear-gradient(
+      to bottom, rgba(238,241,237,0.05) 0, rgba(238,241,237,0.05) 1px, transparent 1px, transparent 28px
+    );
+    pointer-events:none;
+  }
+  .hero-inner{max-width:1080px;margin:0 auto;position:relative;}
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    font-size:12px;
+    color:var(--brass);
+    margin-bottom:14px;
+  }
+  .hero h1{font-size:42px;line-height:1.1;max-width:680px;}
+  .hero p.lede{max-width:560px;margin-top:14px;color:#D8DECC;font-size:16px;}
+  .hero-stat{
+    margin-top:32px;
+    display:flex;
+    gap:40px;
+    flex-wrap:wrap;
+  }
+  .hero-stat div{font-family:'IBM Plex Mono',monospace;}
+  .hero-stat .num{font-size:30px;color:#fff;font-weight:600;}
+  .hero-stat .lab{font-size:12px;color:#AAB7A0;text-transform:uppercase;letter-spacing:.06em;}
+
+  /* NAV */
+  nav.tabs{
+    display:flex;
+    gap:4px;
+    margin:-28px 0 0;
+    position:relative;
+    z-index:2;
+    flex-wrap:wrap;
+  }
+  nav.tabs button{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-bottom:none;
+    padding:12px 18px;
+    cursor:pointer;
+    color:var(--ink);
+    border-radius:4px 4px 0 0;
+    opacity:.55;
+  }
+  nav.tabs button.active{opacity:1; background:#fff; border-color:var(--ledger); box-shadow:0 -2px 0 var(--ledger) inset;}
+
+  section.panel{
+    background:#fff;
+    border:1px solid var(--line);
+    padding:32px;
+    display:none;
+  }
+  section.panel.active{display:block;}
+
+  /* CALCULATOR */
+  .calc-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:24px;
+    margin-top:8px;
+  }
+  @media(max-width:720px){.calc-grid{grid-template-columns:1fr;}}
+  .field label{
+    display:block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:#5b6359;
+    margin-bottom:6px;
+  }
+  .field input, .field select{
+    width:100%;
+    padding:10px 12px;
+    border:1px solid var(--line);
+    border-radius:3px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:15px;
+    background:var(--card);
+  }
+  .field{margin-bottom:18px;}
+
+  h2.section-title{
+    font-size:22px;
+    border-bottom:2px solid var(--ledger);
+    padding-bottom:10px;
+    margin-bottom:20px;
+  }
+  h3.sub{font-size:15px;text-transform:uppercase;letter-spacing:.05em;color:#5b6359;margin:28px 0 12px;font-family:'IBM Plex Mono',monospace;font-weight:600;}
+
+  /* LEDGER ROWS (signature element) */
+  .ledger-row{
+    display:grid;
+    grid-template-columns:170px 1fr 110px;
+    align-items:center;
+    gap:14px;
+    padding:10px 0;
+    border-bottom:1px solid var(--line);
+    cursor:pointer;
+    transition:background .15s;
+  }
+  .ledger-row:hover{background:#F4F5F1;}
+  .ledger-row .name{font-weight:600; font-size:14px;}
+  .ledger-row .name .state-tag{
+    display:inline-block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    padding:1px 5px;
+    border-radius:2px;
+    margin-right:6px;
+    color:#fff;
+  }
+  .tag-nc{background:var(--nc);}
+  .tag-tn{background:var(--tn);}
+  .bar-track{
+    height:18px;
+    background:#EDEEE9;
+    border-radius:2px;
+    overflow:hidden;
+    display:flex;
+  }
+  .bar-seg{height:100%;}
+  .seg-income{background:var(--rust);}
+  .seg-prop{background:var(--brass);}
+  .ledger-row .total{
+    font-family:'IBM Plex Mono',monospace;
+    text-align:right;
+    font-weight:600;
+    font-size:14px;
+  }
+  .legend-line{display:flex;gap:18px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#5b6359;margin:14px 0 22px;}
+  .legend-line span{display:flex;align-items:center;gap:6px;}
+  .legend-line i{width:10px;height:10px;display:inline-block;border-radius:2px;}
+
+  /* REFERENCE CARDS */
+  .card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;margin-top:8px;}
+  .place-card{
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:18px;
+    background:var(--card);
+    border-top:3px solid var(--nc);
+  }
+  .place-card.tn{border-top-color:var(--tn);}
+  .place-card.highlight{
+    animation:pulseHighlight 1.6s ease-out;
+  }
+  @keyframes pulseHighlight{
+    0%{box-shadow:0 0 0 4px var(--brass); }
+    100%{box-shadow:0 0 0 0 transparent;}
+  }
+  .place-card h4{font-family:'Source Serif 4',serif;font-size:18px;margin:0 0 4px;}
+  .place-card .meta{font-family:'IBM Plex Mono',monospace;font-size:12px;color:#5b6359;margin-bottom:10px;}
+  .place-card p{font-size:13.5px;margin:8px 0 0;color:#3a4038;}
+  .place-card .stat-line{display:flex;justify-content:space-between;font-size:13px;margin-top:6px;}
+  .place-card .stat-line .v{font-family:'IBM Plex Mono',monospace;font-weight:600;}
+  .hosp-badge{
+    display:inline-block;
+    margin-top:10px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    padding:3px 8px;
+    border-radius:2px;
+  }
+  .hosp-strong{background:#E3EFE6; color:var(--ledger);}
+  .hosp-mid{background:#F3EBD9; color:var(--brass);}
+  .hosp-weak{background:#F4E4DD; color:var(--rust);}
+  .risk-low{background:#E3EFE6; color:var(--ledger);}
+  .risk-moderate{background:#F3EBD9; color:var(--brass);}
+  .risk-elevated{background:#F4E4DD; color:var(--rust);}
+  .badge-row{display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;}
+  .place-card .extra-stat{font-size:13px; margin-top:6px; color:#3a4038;}
+
+  /* REFERENCE FILTERS */
+  .ref-filters{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:18px;}
+  .ref-filters select{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    padding:8px 10px;
+    border:1px solid var(--line);
+    border-radius:3px;
+    background:var(--card);
+    color:var(--ink);
+  }
+
+  /* CHECKLIST */
+  .checklist-progress{
+    height:8px;
+    background:#EDEEE9;
+    border-radius:4px;
+    overflow:hidden;
+    margin:6px 0 24px;
+  }
+  .checklist-progress-bar{height:100%; background:var(--ledger); transition:width .3s;}
+  .checklist-section{margin-bottom:28px;}
+  .checklist-section h3{
+    font-family:'Source Serif 4',serif;
+    font-size:17px;
+    margin-bottom:4px;
+  }
+  .checklist-section .section-sub{font-size:12.5px; color:#6b7264; margin-bottom:10px;}
+  .checklist-item{
+    display:flex;
+    gap:10px;
+    align-items:flex-start;
+    padding:9px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .checklist-item input[type=checkbox]{
+    margin-top:3px;
+    width:16px; height:16px;
+    accent-color:var(--ledger);
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .checklist-item label{font-size:14px; cursor:pointer;}
+  .checklist-item.checked label{color:#9aa093; text-decoration:line-through;}
+  .checklist-reset{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    color:#8a9183;
+    background:none;
+    border:none;
+    cursor:pointer;
+    text-decoration:underline;
+    padding:0;
+  }
+
+  /* MAP */
+  #map{
+    height:520px;
+    border:1px solid var(--line);
+    border-radius:4px;
+    margin-top:8px;
+  }
+  .map-filters{display:flex;gap:8px;margin-bottom:14px;}
+  .map-filters button{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    padding:8px 14px;
+    border:1px solid var(--line);
+    background:var(--card);
+    border-radius:3px;
+    cursor:pointer;
+    color:var(--ink);
+  }
+  .map-filters button.active{background:var(--ledger); color:#fff; border-color:var(--ledger);}
+  .leaflet-popup-content{font-family:'IBM Plex Sans',sans-serif; font-size:13px;}
+  .leaflet-popup-content b{font-family:'Source Serif 4',serif; font-size:15px;}
+
+  footer{
+    text-align:center;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:#8a9183;
+    padding:30px 24px;
+  }
+  .note{
+    font-size:12.5px;
+    color:#6b7264;
+    background:#F4F5F1;
+    border-left:3px solid var(--brass);
+    padding:10px 14px;
+    margin-top:18px;
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-inner">
+    <div class="eyebrow">Field notes &middot; Relocation research</div>
+    <h1>Where the money goes, town by town.</h1>
+    <p class="lede">A working comparison of North Carolina and Tennessee for retirement — tax exposure, property cost, and proximity to care. Numbers update live as you adjust the figures below.</p>
+    <div class="hero-stat">
+      <div><div class="num mono" id="heroSavings">—</div><div class="lab">Annual state-tax gap, top pick</div></div>
+      <div><div class="num mono">0%</div><div class="lab">TN state income tax, always</div></div>
+      <div><div class="num mono">3.99%</div><div class="lab">NC flat rate (2026)</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <nav class="tabs">
+    <button data-tab="calc" class="active">Calculator</button>
+    <button data-tab="ledger">Ledger — All Locations</button>
+    <button data-tab="map">Map</button>
+    <button data-tab="reference">Reference Notes</button>
+    <button data-tab="checklist">Planning Checklist</button>
+  </nav>
+
+  <!-- CALCULATOR -->
+  <section class="panel active" id="calc">
+    <h2 class="section-title">Run your numbers</h2>
+    <div class="calc-grid">
+      <div>
+        <div class="field">
+          <label>Filing status</label>
+          <select id="filing">
+            <option value="single">Single</option>
+            <option value="mfj">Married filing jointly</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Annual Social Security</label>
+          <input type="number" id="ss" value="40000" step="1000">
+        </div>
+        <div class="field">
+          <label>Annual 401k / deferred comp withdrawal</label>
+          <input type="number" id="dist" value="60000" step="1000">
+        </div>
+      </div>
+      <div>
+        <div class="field">
+          <label>Home value (used for property tax estimate)</label>
+          <input type="number" id="homeval" value="500000" step="10000">
+        </div>
+        <div class="field">
+          <label>Annual spending subject to sales tax (optional)</label>
+          <input type="number" id="spend" value="40000" step="1000">
+        </div>
+        <div class="field">
+          <label>Compare these two directly</label>
+          <select id="compareA"></select>
+        </div>
+      </div>
+    </div>
+    <div class="note">NC fully exempts Social Security; 401k/IRA/deferred comp withdrawals are taxed at the flat 3.99% rate above the standard deduction ($12,750 single / $25,500 MFJ). Tennessee taxes none of it. Property tax uses each location's typical effective rate against the home value you enter — actual market price for a comparable home varies by town (see Reference tab). Sales-tax figure is illustrative only.</div>
+
+    <h3 class="sub">Head-to-head</h3>
+    <div class="calc-grid" id="headToHead"></div>
+  </section>
+
+  <!-- LEDGER -->
+  <section class="panel" id="ledger">
+    <h2 class="section-title">All locations, ranked by total estimated annual tax</h2>
+    <div class="map-filters">
+      <button data-ledger-filter="all" class="active">All locations</button>
+      <button data-ledger-filter="NC">North Carolina only</button>
+      <button data-ledger-filter="TN">Tennessee only</button>
+    </div>
+    <div class="legend-line">
+      <span><i style="background:var(--rust)"></i> State income tax</span>
+      <span><i style="background:var(--brass)"></i> Property tax</span>
+    </div>
+    <p style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8a9183;margin:-6px 0 14px;">Click any row to jump to its reference notes.</p>
+    <div id="ledgerRows"></div>
+  </section>
+
+  <!-- MAP -->
+  <section class="panel" id="map-panel">
+    <h2 class="section-title">Where they sit, relative to each other</h2>
+    <div class="map-filters">
+      <button data-filter="all" class="active">All locations</button>
+      <button data-filter="NC">North Carolina only</button>
+      <button data-filter="TN">Tennessee only</button>
+    </div>
+    <div id="map"></div>
+    <div class="legend-line" style="margin-top:14px;">
+      <span><i style="background:var(--nc)"></i> North Carolina</span>
+      <span><i style="background:var(--tn)"></i> Tennessee</span>
+    </div>
+  </section>
+
+  <!-- REFERENCE -->
+  <section class="panel" id="reference">
+    <h2 class="section-title">Reference notes</h2>
+    <p style="color:#5b6359;font-size:14px;margin-top:-6px;">Approximate figures compiled from county assessor sites, SmartAsset, FBI/local crime data, and local listings as of mid-2026. Verify exact rates with the relevant county assessor before deciding.</p>
+    <div class="ref-filters">
+      <div class="map-filters" id="refStateFilters">
+        <button data-ref-state="all" class="active">All states</button>
+        <button data-ref-state="NC">North Carolina</button>
+        <button data-ref-state="TN">Tennessee</button>
+      </div>
+      <select id="refCountyFilter">
+        <option value="all">All counties</option>
+      </select>
+    </div>
+    <div class="card-grid" id="refCards"></div>
+  </section>
+
+  <!-- CHECKLIST -->
+  <section class="panel" id="checklist">
+    <h2 class="section-title">Retirement relocation checklist</h2>
+    <p style="color:#5b6359;font-size:14px;margin-top:-6px;">Checked items are saved in this browser only — they won't sync across devices, but they'll still be here next time you open this page on this computer. <button class="checklist-reset" id="checklistReset">Reset all</button></p>
+    <div class="checklist-progress"><div class="checklist-progress-bar" id="checklistProgressBar" style="width:0%"></div></div>
+    <div id="checklistContainer"></div>
+  </section>
+</div>
+
+<footer>Compiled for personal planning use &middot; not tax or financial advice &middot; verify figures with a CPA before deciding</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const STD_DEDUCTION = { single: 12750, mfj: 25500 };
+const NC_RATE = 0.0399;
+
+// effective property tax rate (decimal), typical home price (for reference card only), hospital info
+// crime/climate: 'low' | 'moderate' | 'elevated' — relative to each other in this list, not a national scale
+const LOCATIONS = [
+  { id:'charlotte', name:'Charlotte', state:'NC', county:'Mecklenburg', rate:0.0085, home:430000, lat:35.2271, lng:-80.8431,
+    hosp:'strong', hospNote:'Atrium Health / Carolinas Medical Center — major flagship hospital in-city.',
+    crime:'moderate', crimeNote:'Moderate crime index, trending up — violent crime +6% in 2024. Typical big-metro profile.',
+    climate:'low', climateNote:'Piedmont location, well below the mountains. Occasional hurricane remnant rain; low tornado frequency.' },
+  { id:'raleigh', name:'Raleigh', state:'NC', county:'Wake', rate:0.0085, home:455000, lat:35.7796, lng:-78.6382,
+    hosp:'strong', hospNote:'WakeMed, Duke Raleigh, UNC REX — all in-metro, no drive required.',
+    crime:'moderate', crimeNote:'Moderate overall, but homicides rose sharply (10-year high) in recent reporting — worth monitoring the trend, not just the snapshot.',
+    climate:'low', climateNote:'Same Piedmont profile as Charlotte — low tornado/flood frequency relative to TN options.' },
+  { id:'knoxville', name:'Knoxville', state:'TN', county:'Knox', rate:0.0060, home:350000, lat:35.9606, lng:-83.9207,
+    hosp:'strong', hospNote:'UT Medical Center, Fort Sanders Regional — full-service, in-town.',
+    crime:'low', crimeNote:'Generally lower crime index than the Middle TN towns and lower than Charlotte/Raleigh in city-to-city comparisons.',
+    climate:'moderate', climateNote:'East TN — hillier terrain moderates tornado frequency vs Middle TN, but still sees seasonal severe weather.' },
+  { id:'chattanooga', name:'Chattanooga', state:'TN', county:'Hamilton', rate:0.0055, home:399000, lat:35.0456, lng:-85.3097,
+    hosp:'strong', hospNote:'Erlanger, CHI Memorial — full-service, in-town.',
+    crime:'moderate', crimeNote:'Mixed by neighborhood; broadly moderate for a mid-size TN city.',
+    climate:'moderate', climateNote:'Similar terrain-moderated profile to Knoxville — lower tornado exposure than Middle TN.' },
+  { id:'franklin', name:'Franklin', state:'TN', county:'Williamson', rate:0.0050, home:890000, lat:35.9251, lng:-86.8689,
+    hosp:'strong', hospNote:'Williamson Medical Center in-town; Vanderbilt clinics; Nashville ~25 min.',
+    crime:'low', crimeNote:'One of the safest cities in Tennessee — around 147 violent crimes per 100,000.',
+    climate:'elevated', climateNote:'Middle TN sits in the secondary tornado corridor ("Dixie Alley"); regular spring severe-weather watches and flash-flood risk.' },
+  { id:'brentwood', name:'Brentwood', state:'TN', county:'Williamson', rate:0.0040, home:1300000, lat:36.0331, lng:-86.7828,
+    hosp:'mid', hospNote:'Closest of the three to Nashville/Vanderbilt (~15 min); relies on Franklin or Nashville for full hospital.',
+    crime:'low', crimeNote:'The single safest city in Tennessee by most crime indices — roughly 1,200 incidents per 100,000.',
+    climate:'elevated', climateNote:'Same Middle TN tornado/flash-flood exposure as the rest of Williamson County.' },
+  { id:'thompsons', name:"Thompson's Station", state:'TN', county:'Williamson', rate:0.0045, home:750000, lat:35.7990, lng:-86.9075,
+    hosp:'mid', hospNote:'Same county access as Franklin, but furthest of the three from a full hospital (~20-25 min).',
+    crime:'low', crimeNote:'Smaller, newer community in the same low-crime Williamson County profile.',
+    climate:'elevated', climateNote:'Same Middle TN exposure as the rest of Williamson County.' },
+  { id:'springhill', name:'Spring Hill', state:'TN', county:'Williamson/Maury', rate:0.0048, home:520000, lat:35.7512, lng:-86.9303,
+    hosp:'mid', hospNote:'TriStar ER + Vanderbilt/Williamson clinics locally; full hospital in Franklin ~20 min.',
+    crime:'low', crimeNote:'53% below the national average; lower crime than 99% of comparable US cities.',
+    climate:'elevated', climateNote:'Same Middle TN exposure as the rest of Williamson/Maury.' },
+  { id:'murfreesboro', name:'Murfreesboro', state:'TN', county:'Rutherford', rate:0.0048, home:457000, lat:35.8456, lng:-86.3903,
+    hosp:'strong', hospNote:'Ascension Saint Thomas Rutherford — full-service hospital in-town. Strongest standalone access of the affordable towns.',
+    crime:'elevated', crimeNote:'Above the national average — downtown, North Murfreesboro, and Murfreesboro Pike see more assaults/burglaries, though several neighborhoods stay well below the city average.',
+    climate:'elevated', climateNote:'Same Middle TN tornado/flash-flood exposure as the rest of the Nashville metro.' },
+  { id:'columbia', name:'Columbia', state:'TN', county:'Maury', rate:0.0045, home:417000, lat:35.6151, lng:-87.0353,
+    hosp:'mid', hospNote:'Maury Regional Medical Center in-town; Franklin/Nashville 30-45 min for specialized care.',
+    crime:'moderate', crimeNote:'Smaller town profile; data is thinner but generally moderate, below Murfreesboro.',
+    climate:'elevated', climateNote:'Same Middle TN exposure, slightly further from the most flood-prone river corridors.' },
+  { id:'antioch', name:'Antioch', state:'TN', county:'Davidson', rate:0.0095, home:405000, lat:36.0589, lng:-86.6711,
+    hosp:'strong', hospNote:'TriStar Southern Hills Medical Center nearby (full-service); Nashville/Vanderbilt ~20 min. Most affordable entry point into the Nashville metro, but Davidson County carries the highest effective property tax rate of any location here.',
+    crime:'elevated', crimeNote:'Reputation locally as one of the higher-crime pockets of Davidson County relative to the Williamson County suburbs — worth verifying against current ZIP-level data before deciding.',
+    climate:'elevated', climateNote:'Same Middle TN tornado/flash-flood exposure as the rest of the Nashville metro.' },
+];
+
+const MEDIGAP = {
+  NC: { low: 200, high: 220, note: "Middle-of-the-pack nationally, near the $220 national average for Plan G at 65." },
+  TN: { low: 150, high: 190, note: "One of the cheapest states nationally for Medigap Plan G at 65 — well under the national average." }
+};
+
+const SALES_TAX = { NC: 0.0698, TN: 0.0955 };
+
+function calcLocation(loc, ss, dist, homeval, std){
+  const taxableNC = Math.max(0, dist - std);
+  const incomeTax = loc.state === 'NC' ? taxableNC * NC_RATE : 0;
+  const propTax = homeval * loc.rate;
+  return { incomeTax, propTax, total: incomeTax + propTax };
+}
+
+function fmt(n){ return '$' + Math.round(n).toLocaleString(); }
+
+function renderLedger(){
+  const ss = +document.getElementById('ss').value;
+  const dist = +document.getElementById('dist').value;
+  const homeval = +document.getElementById('homeval').value;
+  const filing = document.getElementById('filing').value;
+  const std = STD_DEDUCTION[filing];
+
+  const results = LOCATIONS.map(loc => ({ loc, ...calcLocation(loc, ss, dist, homeval, std) }));
+  results.sort((a,b) => a.total - b.total);
+  const maxTotal = Math.max(...results.map(r => r.total), 1);
+
+  const rowsEl = document.getElementById('ledgerRows');
+  rowsEl.innerHTML = results.map(r => {
+    const incomePct = (r.incomeTax / maxTotal) * 100;
+    const propPct = (r.propTax / maxTotal) * 100;
+    const tag = r.loc.state === 'NC' ? 'tag-nc' : 'tag-tn';
+    return `<div class="ledger-row" data-id="${r.loc.id}" data-state="${r.loc.state}">
+      <div class="name"><span class="state-tag ${tag}">${r.loc.state}</span>${r.loc.name}</div>
+      <div class="bar-track">
+        <div class="bar-seg seg-income" style="width:${incomePct}%"></div>
+        <div class="bar-seg seg-prop" style="width:${propPct}%"></div>
+      </div>
+      <div class="total mono">${fmt(r.total)}</div>
+    </div>`;
+  }).join('');
+
+  document.querySelectorAll('.ledger-row').forEach(row => {
+    row.addEventListener('click', () => jumpToReference(row.dataset.id));
+  });
+
+  applyLedgerFilter();
+
+  // hero savings stat: best NC vs best TN
+  const bestNC = results.filter(r => r.loc.state === 'NC').sort((a,b)=>a.total-b.total)[0];
+  const bestTN = results.filter(r => r.loc.state === 'TN').sort((a,b)=>a.total-b.total)[0];
+  if (bestNC && bestTN){
+    const gap = bestNC.incomeTax - bestTN.incomeTax; // pure income-tax gap, the structural part
+    document.getElementById('heroSavings').textContent = fmt(Math.abs(gap)) + '/yr';
+  }
+
+  renderHeadToHead(results, std);
+}
+
+function badgeClass(level){
+  return level === 'strong' ? 'hosp-strong' : level === 'mid' ? 'hosp-mid' : 'hosp-weak';
+}
+function badgeLabel(level){
+  return level === 'strong' ? 'Full hospital in-town' : level === 'mid' ? 'Clinic/ER local, hospital nearby' : 'Limited local access';
+}
+
+function renderHeadToHead(results, std){
+  const compareSel = document.getElementById('compareA');
+  if (!compareSel.options.length){
+    compareSel.innerHTML = LOCATIONS.map(l => `<option value="${l.id}">${l.name}, ${l.state}</option>`).join('');
+    compareSel.value = 'murfreesboro';
+  }
+  const a = results.find(r => r.loc.id === compareSel.value) || results[0];
+  const b = results.find(r => r.loc.id !== compareSel.value && r.loc.state !== a.loc.state) || results[1];
+
+  const el = document.getElementById('headToHead');
+  el.innerHTML = [a,b].map(r => `
+    <div class="place-card ${r.loc.state==='TN'?'tn':''}">
+      <h4>${r.loc.name}, ${r.loc.state}</h4>
+      <div class="meta">${r.loc.county} County</div>
+      <div class="stat-line"><span>State income tax</span><span class="v">${fmt(r.incomeTax)}/yr</span></div>
+      <div class="stat-line"><span>Property tax (est.)</span><span class="v">${fmt(r.propTax)}/yr</span></div>
+      <div class="stat-line"><span>Total estimated</span><span class="v">${fmt(r.total)}/yr</span></div>
+      <span class="hosp-badge ${badgeClass(r.loc.hosp)}">${badgeLabel(r.loc.hosp)}</span>
+      <p>${r.loc.hospNote}</p>
+    </div>
+  `).join('');
+}
+
+function riskBadgeClass(level){
+  return level === 'low' ? 'risk-low' : level === 'moderate' ? 'risk-moderate' : 'risk-elevated';
+}
+function riskBadgeLabel(prefix, level){
+  const word = level === 'low' ? 'Low' : level === 'moderate' ? 'Moderate' : 'Elevated';
+  return `${prefix}: ${word}`;
+}
+
+function renderReference(){
+  const el = document.getElementById('refCards');
+  el.innerHTML = LOCATIONS.map(loc => {
+    const mg = MEDIGAP[loc.state];
+    return `
+    <div class="place-card ${loc.state==='TN'?'tn':''}" data-id="${loc.id}" data-state="${loc.state}" data-county="${loc.county}">
+      <h4>${loc.name}</h4>
+      <div class="meta">${loc.state} &middot; ${loc.county} County</div>
+      <div class="stat-line"><span>Typical home price</span><span class="v">${fmt(loc.home)}</span></div>
+      <div class="stat-line"><span>Effective property tax</span><span class="v">${(loc.rate*100).toFixed(2)}%</span></div>
+      <div class="stat-line"><span>Sales tax (state avg)</span><span class="v">${(SALES_TAX[loc.state]*100).toFixed(2)}%</span></div>
+      <div class="stat-line"><span>Medigap Plan G (age 65, state avg)</span><span class="v">$${mg.low}&ndash;${mg.high}/mo</span></div>
+      <div class="badge-row">
+        <span class="hosp-badge ${badgeClass(loc.hosp)}">${badgeLabel(loc.hosp)}</span>
+        <span class="hosp-badge ${riskBadgeClass(loc.crime)}">${riskBadgeLabel('Crime', loc.crime)}</span>
+        <span class="hosp-badge ${riskBadgeClass(loc.climate)}">${riskBadgeLabel('Severe weather', loc.climate)}</span>
+      </div>
+      <p>${loc.hospNote}</p>
+      <p class="extra-stat">${loc.crimeNote}</p>
+      <p class="extra-stat">${loc.climateNote}</p>
+      <p class="extra-stat">${mg.note}</p>
+    </div>
+  `;
+  }).join('');
+  populateCountyFilter();
+  applyReferenceFilter();
+}
+
+function populateCountyFilter(){
+  const stateFilter = document.querySelector('#refStateFilters button.active')?.dataset.refState || 'all';
+  const counties = [...new Set(LOCATIONS.filter(l => stateFilter === 'all' || l.state === stateFilter).map(l => l.county))].sort();
+  const sel = document.getElementById('refCountyFilter');
+  const prevValue = sel.value;
+  sel.innerHTML = '<option value="all">All counties</option>' + counties.map(c => `<option value="${c}">${c}</option>`).join('');
+  sel.value = counties.includes(prevValue) ? prevValue : 'all';
+}
+
+function applyReferenceFilter(){
+  const stateFilter = document.querySelector('#refStateFilters button.active')?.dataset.refState || 'all';
+  const countyFilter = document.getElementById('refCountyFilter').value;
+  document.querySelectorAll('#refCards .place-card').forEach(card => {
+    const matchesState = stateFilter === 'all' || card.dataset.state === stateFilter;
+    const matchesCounty = countyFilter === 'all' || card.dataset.county === countyFilter;
+    card.style.display = (matchesState && matchesCounty) ? '' : 'none';
+  });
+}
+
+document.querySelectorAll('#refStateFilters button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#refStateFilters button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    populateCountyFilter();
+    applyReferenceFilter();
+  });
+});
+
+document.getElementById('refCountyFilter').addEventListener('change', applyReferenceFilter);
+
+function jumpToReference(id){
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('section.panel').forEach(p => p.classList.remove('active'));
+  document.querySelector('nav.tabs button[data-tab="reference"]').classList.add('active');
+  document.getElementById('reference').classList.add('active');
+
+  // reset reference filters so the target card is guaranteed visible
+  document.querySelectorAll('#refStateFilters button').forEach(b => b.classList.remove('active'));
+  document.querySelector('#refStateFilters button[data-ref-state="all"]').classList.add('active');
+  document.getElementById('refCountyFilter').value = 'all';
+  populateCountyFilter();
+  applyReferenceFilter();
+
+  const card = document.querySelector(`#refCards .place-card[data-id="${id}"]`);
+  if (card){
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.remove('highlight');
+    // restart animation
+    void card.offsetWidth;
+    card.classList.add('highlight');
+  }
+}
+
+function applyLedgerFilter(){
+  const activeBtn = document.querySelector('#ledger .map-filters button.active');
+  const filter = activeBtn ? activeBtn.dataset.ledgerFilter : 'all';
+  document.querySelectorAll('#ledgerRows .ledger-row').forEach(row => {
+    row.style.display = (filter === 'all' || row.dataset.state === filter) ? '' : 'none';
+  });
+}
+
+document.querySelectorAll('#ledger .map-filters button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#ledger .map-filters button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    applyLedgerFilter();
+  });
+});
+
+let leafletMap = null;
+let mapMarkers = [];
+
+function initMap(){
+  if (leafletMap) { leafletMap.invalidateSize(); return; }
+
+  leafletMap = L.map('map', { scrollWheelZoom: false });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 18
+  }).addTo(leafletMap);
+
+  mapMarkers = LOCATIONS.map(loc => {
+    const color = loc.state === 'NC' ? '#3C5A78' : '#8B5E3C';
+    const marker = L.circleMarker([loc.lat, loc.lng], {
+      radius: 9,
+      fillColor: color,
+      color: '#fff',
+      weight: 2,
+      fillOpacity: 0.9
+    }).addTo(leafletMap);
+    marker.bindPopup(`<b>${loc.name}, ${loc.state}</b><br>${loc.county} County<br>Property tax: ${(loc.rate*100).toFixed(2)}%<br>Typical home: ${fmt(loc.home)}`);
+    marker.locState = loc.state;
+    return marker;
+  });
+
+  const bounds = L.latLngBounds(LOCATIONS.map(l => [l.lat, l.lng]));
+  leafletMap.fitBounds(bounds, { padding: [40, 40] });
+}
+
+function filterMap(state){
+  mapMarkers.forEach(m => {
+    const show = state === 'all' || m.locState === state;
+    if (show && !leafletMap.hasLayer(m)) leafletMap.addLayer(m);
+    if (!show && leafletMap.hasLayer(m)) leafletMap.removeLayer(m);
+  });
+}
+
+document.querySelectorAll('#map-panel .map-filters button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#map-panel .map-filters button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    filterMap(btn.dataset.filter);
+  });
+});
+
+const CHECKLIST = [
+  { section: 'Before you commit', sub: 'Validate the decision with real visits and real numbers.', items: [
+    { id: 'visit-each-season', label: 'Visit top 2-3 candidate towns in more than one season (esp. a TN spring storm season)' },
+    { id: 'verify-rates', label: 'Verify property tax rate and home values directly with the county assessor, not just estimates' },
+    { id: 'shadow-week', label: 'Spend a trial week actually living in the top choice — groceries, traffic, doctor drive times' },
+    { id: 'talk-to-locals', label: 'Talk to a few actual residents (not just realtors) about crime, traffic, HOA culture' },
+  ]},
+  { section: 'Tax & legal', sub: 'Establishing domicile correctly matters for tax purposes, not just where you sleep.', items: [
+    { id: 'establish-domicile', label: 'Understand state domicile rules — driver\'s license, voter registration, vehicle title all need to match your new state' },
+    { id: 'final-nc-return', label: 'Plan your final part-year state tax return for the year you move (NC taxes income earned while domiciled there)' },
+    { id: 'update-estate-docs', label: 'Review/update will, power of attorney, and healthcare proxy for new-state requirements' },
+    { id: 'vehicle-registration', label: 'Re-register vehicles and transfer titles within the new state\'s required window' },
+    { id: 'consult-cpa', label: 'Run the actual move year past a CPA — part-year residency rules can be more complex than a flat-rate comparison suggests' },
+  ]},
+  { section: 'Healthcare & Medicare', sub: 'Coverage gaps during a move are avoidable with enough lead time.', items: [
+    { id: 'medigap-shopping', label: 'Shop Medigap/Medicare Advantage plans available at the new ZIP code before moving — coverage and price both vary by county' },
+    { id: 'find-pcp', label: 'Identify and get on a waitlist for a new primary care physician — good ones can have long waits' },
+    { id: 'transfer-records', label: 'Arrange medical record transfer from current providers' },
+    { id: 'prescription-transfer', label: 'Confirm pharmacy and prescription transfer, including any specialty medications' },
+    { id: 'ship-counseling', label: 'Consider a free SHIP (State Health Insurance Assistance Program) counseling session in the new state' },
+  ]},
+  { section: 'Financial & accounts', sub: 'Addresses follow you everywhere — get ahead of it.', items: [
+    { id: 'update-ss-address', label: 'Update address with Social Security Administration' },
+    { id: 'update-401k-address', label: 'Update address with 401k/deferred comp plan administrator and IRA custodian' },
+    { id: 'banking-local', label: 'Decide whether to open a local bank presence or keep current bank/credit union' },
+    { id: 'homeowners-insurance', label: 'Get homeowners insurance quotes in the new location, including wind/flood riders if relevant' },
+    { id: 'umbrella-policy', label: 'Confirm auto/umbrella insurance policies transfer or need re-quoting for the new state' },
+  ]},
+  { section: 'Housing & move logistics', sub: 'The physical move, decoupled from the financial decision.', items: [
+    { id: 'sell-or-rent', label: 'Decide sell vs. rent on current home, and model both' },
+    { id: 'home-inspection', label: 'Get an independent inspection on any new home before closing — don\'t rely solely on agent walkthroughs' },
+    { id: 'movers-quotes', label: 'Get at least 3 moving company quotes if not doing it yourself' },
+    { id: 'mail-forwarding', label: 'Set up USPS mail forwarding and update address with key institutions' },
+    { id: 'utilities-setup', label: 'Set up utilities, internet, and any HOA paperwork ahead of move-in' },
+  ]},
+  { section: 'Family & care coordination', sub: 'Specific to managing care for your parent from a new distance.', items: [
+    { id: 'discuss-with-siblings', label: 'Talk through the move with Miami-Dade siblings — confirm who\'s the primary point of contact in an emergency post-move' },
+    { id: 'update-care-poa', label: 'Confirm your role on any healthcare proxy/POA for your parent still works logistically from the new location' },
+    { id: 'flight-baseline', label: 'Establish a baseline travel plan (flights/driving time) for routine visits vs. emergency response' },
+    { id: 'local-backup-plan', label: 'Identify what backup support exists if you can\'t get there quickly (sibling coverage, care agency, etc.)' },
+  ]},
+  { section: 'Community & settling in', sub: 'The soft factors that determine whether it actually feels like home.', items: [
+    { id: 'find-church', label: 'Identify and visit a few congregations in the new area before committing to one' },
+    { id: 'social-clubs', label: 'Look into local clubs, volunteer groups, or recreational activities to build a social network' },
+    { id: 'register-to-vote', label: 'Register to vote in the new state' },
+    { id: 'local-services', label: 'Identify a new dentist, mechanic, and other recurring service providers in advance' },
+  ]},
+];
+
+function loadChecklistState(){
+  try {
+    const raw = localStorage.getItem('relocation-checklist-state');
+    return raw ? JSON.parse(raw) : {};
+  } catch(e){ return {}; }
+}
+function saveChecklistState(state){
+  try { localStorage.setItem('relocation-checklist-state', JSON.stringify(state)); } catch(e){ /* ignore */ }
+}
+
+function renderChecklist(){
+  const state = loadChecklistState();
+  const container = document.getElementById('checklistContainer');
+  container.innerHTML = CHECKLIST.map(sec => `
+    <div class="checklist-section">
+      <h3>${sec.section}</h3>
+      <div class="section-sub">${sec.sub}</div>
+      ${sec.items.map(item => `
+        <div class="checklist-item ${state[item.id] ? 'checked' : ''}">
+          <input type="checkbox" id="chk-${item.id}" ${state[item.id] ? 'checked' : ''}>
+          <label for="chk-${item.id}">${item.label}</label>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+
+  container.querySelectorAll('input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const s = loadChecklistState();
+      const id = cb.id.replace('chk-', '');
+      s[id] = cb.checked;
+      saveChecklistState(s);
+      cb.closest('.checklist-item').classList.toggle('checked', cb.checked);
+      updateChecklistProgress();
+    });
+  });
+
+  updateChecklistProgress();
+}
+
+function updateChecklistProgress(){
+  const state = loadChecklistState();
+  const total = CHECKLIST.reduce((sum, sec) => sum + sec.items.length, 0);
+  const checked = Object.values(state).filter(Boolean).length;
+  const pct = total ? Math.round((checked / total) * 100) : 0;
+  document.getElementById('checklistProgressBar').style.width = pct + '%';
+}
+
+document.getElementById('checklistReset').addEventListener('click', () => {
+  if (confirm('Clear all checked items on this device?')){
+    saveChecklistState({});
+    renderChecklist();
+  }
+});
+
+// tabs
+document.querySelectorAll('nav.tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('nav.tabs button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('section.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    const targetId = btn.dataset.tab === 'map' ? 'map-panel' : btn.dataset.tab;
+    document.getElementById(targetId).classList.add('active');
+    if (btn.dataset.tab === 'map') initMap();
+  });
+});
+
+['ss','dist','homeval','filing','spend'].forEach(id => {
+  document.getElementById(id).addEventListener('input', renderLedger);
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderLedger();
+  renderReference();
+  renderChecklist();
+
+  document.getElementById('compareA').addEventListener('change', renderLedger);
+});
+
+// run once in case DOMContentLoaded already fired
+renderLedger();
+renderReference();
+renderChecklist();
+</script>
+</body>
+</html>
